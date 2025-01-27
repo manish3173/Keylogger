@@ -1,6 +1,5 @@
 # Keylogger: A Comprehensive Activity Monitoring System
 
-## Introduction
 Keylogger is a tool designed to track and log user activity on a system. It captures keystrokes, takes screenshots, records audio, tracks clipboard activity, and securely transmits the collected data to a remote server using Twilio. The project is built using Python and involves encryption for data security.
 
 ## Features
@@ -92,13 +91,13 @@ Copy the generated key and paste it in the following files:
 
 
 ## Contributing
-
 Feel free to submit issues and pull requests. Contributions are welcome!
 
 ## Contact
-
 For questions or support, please contact:
 
 - **Y Manish Kumar**: [ymanishk602@gmail.com](mailto:ymanishk602@gmail.com)
 
+## License
+This project is licensed under the MIT License.
 
