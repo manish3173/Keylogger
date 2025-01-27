@@ -50,9 +50,9 @@ Install the required Python libraries by running the following commands:
 ## Setup Encryption Key
 
 Generate an encryption key using the provided script:    
-    ```bash
+   ```bash
    python GenerateKey.py
-   
+   ```
 Copy the generated key and paste it in the following files:
  DecryptFile.py
  Keylogger.py
@@ -90,13 +90,14 @@ Copy the generated key and paste it in the following files:
    python Keylogger.py
 
 
-## Contributing
-Feel free to submit issues and pull requests. Contributions are welcome!
-
 ## Contact
 For questions or support, please contact:
 
 - **Y Manish Kumar**: [ymanishk602@gmail.com](mailto:ymanishk602@gmail.com)
+  
+## Contributing
+Feel free to submit issues and pull requests. Contributions are welcome!
+
 
 ## License
 This project is licensed under the MIT License.
