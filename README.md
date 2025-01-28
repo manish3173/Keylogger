@@ -88,7 +88,7 @@ Copy the generated key and paste it in the following files:
 
    ```bash
    python Keylogger.py
-
+   ```
 
 ## Contact
 For questions or support, please contact:
