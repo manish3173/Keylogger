@@ -47,15 +47,7 @@ Install the required Python libraries by running the following commands:
    ```bash
    sudo apt update
    sudo apt install python3-pip
-## Setup Encryption Key
 
-Generate an encryption key using the provided script:    
-   ```bash
-   python GenerateKey.py
-   ```
-Copy the generated key and paste it in the following files:
- DecryptFile.py
- Keylogger.py
 
 ## Twilio Configuration
 
